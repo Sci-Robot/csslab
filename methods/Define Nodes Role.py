@@ -12,27 +12,11 @@ import numpy as np
 import networkx as nx
 
 def unique(lst):
+    '''
+    用于统计Series中每个元素出现的次数
+    '''
     return dict(zip(*np.unique(lst, return_counts=True)))
     
-# 为边表中的每个ST都加上community信息
-def ST_community(edgedata, nodedata, save_path=None):
-    '''
-    :param edgedata: 网络的边数据，具有['Source'] and ['Target']数据项
-    :param nodedata: 网络的节点数据，具有['id'] and ['community']数据项
-    :param save_path: 信息保存地址
-    :return: 具有ST社团编号的边数据，pd.DataFrame
-    
-    这只是对数据的一个初步加工，方便后续对网络进行各种角度的切片划分
-    '''
-    for i in nodedata.index:
-        node_source_index = edgedata['Source'] == nodedata.loc[i,'id']
-        node_target_index = edgedata['Target'] == nodedata.loc[i,'id']
-        edgedata.loc[node_source_index,'source_community'] = nodedata.loc[i,'community']
-        edgedata.loc[node_target_index,'target_community'] = nodedata.loc[i,'community']
-    if save_path is not None:
-        edgedata.to_csv(save_path,header=True,index=False)
-        print('File Saved : ', save_path) 
-    return edgedata
         
 def featrue_normalization(dict_unorm):
     '''
@@ -48,11 +32,10 @@ def featrue_normalization(dict_unorm):
     dict_normalized = {}
     for key in dict_unorm.keys():
         dict_normalized[key] = (dict_unorm[key] - ave) / std
-    #series_normalized = pd.Series(dict_normalized)
 
     return dict_normalized
 
-def node_role(edgedata_community, nodedata, N, node_save_path='Nodes_BZP_result.csv', community_save_path='Community_result.csv'):
+def node_role(edgedata_community, nodedata, N, node_save_path='Nodes_BZP_result.csv ', community_save_path='Community_result.csv'):
     '''
     :param edgedata_community: 带有社团信息的边数据
     :param nodedata: 节点数据
@@ -64,7 +47,19 @@ def node_role(edgedata_community, nodedata, N, node_save_path='Nodes_BZP_result.
     对社团划分后的网络进行分析，
     可得到Community_result.csv和Nodes_BZP_result.csv 
     
-    针对网络中的每个节点，主要计算其BZP参数值
+    针对网络中的每个节点，主要计算其BZP参数值；
+    Z: 每个节点在它所在的局部社团的内部连边数intra_communtiy_degree；
+    即每个节点在其社团内部连接的重要程度，并且与同社区内的节点进行z-score标准化；
+    
+    P: 社团内节点的连边在每个社团间的分布情况，取值在[0, 1]；
+    0表示该节点所有边都分布在其所在社团内部，1表示该节点所有连边均匀的分布在各个社团内；
+    
+    B: 是我们自己定义的一个指标，是相对于Z而言，每个节点在它所在的社团的外部连接情况；
+    表达式为，B = 节点的跨社团连边数 / 其所在社团连接的总的外部节点数
+    
+    关于ZP参数计算公式的参考文献：
+    [1] Guimerà R, Nunes Amaral LA. Functional cartography of complex metabolic networks.[J].
+    Nature, 2005, 433(7028):895.
     '''
     # 对网络进行结构化分析，网络为全连通、无权、无向的网络
     graph = nx.from_pandas_dataframe(edgedata_community, 'Source', 'Target', create_using=nx.Graph())
@@ -114,7 +109,6 @@ def node_role(edgedata_community, nodedata, N, node_save_path='Nodes_BZP_result.
         intra_community_ports = pd.concat([pd.Series(list_intra_source),pd.Series(list_intra_target)])
         dict_num_intra_community_links[community] = len(intra_community_edges)
         
-        
         dict_intra_community_degree = unique(intra_community_ports)  # 每个节点在社团内的连边数
 
         # extra community links        
@@ -147,22 +141,21 @@ def node_role(edgedata_community, nodedata, N, node_save_path='Nodes_BZP_result.
             # P
             node_index1 = edgedata_community['Source'] == node
             node_index2 = edgedata_community['Target'] == node
-            source_community = edgedata_community.loc[node_index1,'target_community']
-            target_community = edgedata_community.loc[node_index2,'source_community']
+            source_community = edgedata_community.loc[node_index1,'community_Target']
+            target_community = edgedata_community.loc[node_index2,'community_Source']
             edge_community = pd.concat([source_community,target_community])
             dict_x = unique(edge_community)
             sum_x = 0           
             for key in dict_x.keys():
                 sum_x += (dict_x[key]/ nx.degree(graph,node))**2
             dict_p[node] = 1-sum_x
-
                 
             # B
             dict_b = {}
             for key in dict_extra_community_degree.keys():
                 dict_b[key] = dict_extra_community_degree[key] / dict_extra_community_ports[community]
             dict_b = featrue_normalization(dict_b)
-                             
+                              
             # Z       
             std = np.std(list(dict_intra_community_degree.values()), ddof = 1)  # 无偏样本标准差
             ave = np.average(list(dict_intra_community_degree.values()))
@@ -218,9 +211,10 @@ def main_example():
 
     edgedata = pd.DataFrame(edges,columns=['Source','Target','weight'])
     
-    edgedata_community = ST_community(edgedata,nodedata)
+    edgedata_community = pd.merge(edgedata,nodedata,how='left',left_on='Source',right_on='id')
+    edgedata_community = edgedata_community.merge(nodedata,how='left',left_on='Target',right_on='id',suffixes=('_Source', '_Target'))
+
     community_features,node_features = node_role(edgedata_community, nodedata, 2)
-    
 
 if __name__ == '__main__':
     main_example()
