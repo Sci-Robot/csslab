@@ -1,7 +1,6 @@
 #-*- coding:utf-8 -*-
 
 '''
-
 目的：
     用于对复杂网络相关的分析，创建网络，计算网络特征等
     结合了networkx, igraph, pygrahistry的接口
@@ -17,7 +16,6 @@
     * 社区发现 - community_detect
     * 绘制网络 - draw_graph
 
-
 主要数据：
     edgedata:
         DataFrame;
@@ -27,7 +25,6 @@
         DataFrame;
         社区划分的结果，形式为['Id','modularity_class']
         gephi导出的结果为['id','modularity_class']，注意
-
 
 备注：
     * 2017.10.10

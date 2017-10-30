@@ -2,11 +2,10 @@
 '''
 目的: 提供一些可视化的方法
 
-方法一览:
+方法:
     * 绘制热力图
         - draw_heatmap - 绘制热图，支持多个热图绘制在1个figure上
         - heatmap_from_dataframe - 直接从dataframe绘制热图
-
 
 '''
 
